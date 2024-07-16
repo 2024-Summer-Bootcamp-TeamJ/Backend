@@ -16,6 +16,12 @@ import re
 
 router = APIRouter()
 
+audio_factor_list = [
+    (0.9, 0.4, 20, 5000),
+    (1.5, 6.4, 1.25, 2500),
+    (1.1, 1.5, 5.3, 5000),
+]
+
 
 @router.websocket("/chatrooms/{chatroom_id}")
 async def websocket_endpoint(
@@ -109,7 +115,14 @@ how would you respond to this inquiry: "{question}"?',
             ChatService.create_chat(
                 db, chatroom_id=chatroom_id, is_user=False, content=server_message
             )
-            task_audio = celery_worker.generate_audio_from_string.delay(server_message)
+            chatroom = ChatroomService.get_chatroom(db, chatroom_id)
+            task_audio = celery_worker.generate_audio_from_string.delay(
+                server_message,
+                audio_factor_list[chatroom.mentor_id - 1][0],
+                audio_factor_list[chatroom.mentor_id - 1][1],
+                audio_factor_list[chatroom.mentor_id - 1][2],
+                audio_factor_list[chatroom.mentor_id - 1][3],
+            )
 
             server_audio = task_audio.get()
 
