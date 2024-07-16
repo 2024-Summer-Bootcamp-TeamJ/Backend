@@ -4,9 +4,10 @@ from openai import OpenAI
 from langchain.prompts import PromptTemplate
 from pydub import AudioSegment
 from gtts import gTTS
-import random
 import io
 import base64
+import librosa
+import soundfile as sf
 
 
 broker_url = os.getenv("CELERY_BROKER_URL")
@@ -56,36 +57,55 @@ def gpt_answer(question):
 
 
 @app.task
-def generate_audio_from_string(string, random_factor=0.1):
-    result_sound = None
+def generate_audio_from_string(string, pitch, speed, frequency, low_pass_filter_value):
     os.makedirs("samples", exist_ok=True)
+    os.makedirs("result", exist_ok=True)
 
-    for idx, letter in enumerate(string):
-        print(f"Processing letter at index {idx}: '{letter}'")  # 문자 정보 출력
+    result_sound = None
+
+    for i, letter in enumerate(string):
         if letter == " ":
-            # 공백 문자 처리 시 기본 값을 사용하여 letter_sound를 정의합니다.
-            letter_sound = AudioSegment.silent(duration=50)  # 50ms의 무음 생성
-            new_sound = letter_sound._spawn(
-                b"\x00" * (44100 // 3), overrides={"frame_rate": 44100}
-            )
-            new_sound = new_sound.set_frame_rate(44100)
+            new_sound = AudioSegment.silent(duration=50)
         else:
-            sample_path = f"samples/{letter}.mp3"
-            if not os.path.isfile(sample_path):
+            if not os.path.isfile(f"samples/{letter}.mp3"):
                 tts = gTTS(letter, lang="ko")
-                tts.save(sample_path)
+                tts.save(f"samples/{letter}.mp3")
 
-            letter_sound = AudioSegment.from_mp3(sample_path)
-            raw = letter_sound.raw_data[5000:-5000]
+            letter_sound, sr = librosa.load(f"samples/{letter}.mp3")
 
-            octaves = 2.0 + random.random() * random_factor
-            frame_rate = int(letter_sound.frame_rate * (2.0**octaves))
-            # print('%s - octaves: %.2f, fr: %d' % (letter, octaves, frame_rate))
+            # 피치 변경
+            octaves = pitch
+            print(f"{letter} - octaves: {octaves}")
+            pitch_shifted_sound = librosa.effects.pitch_shift(
+                letter_sound, sr=sr, n_steps=octaves * 12
+            )
 
-            new_sound = letter_sound._spawn(raw, overrides={"frame_rate": frame_rate})
-            new_sound = new_sound.set_frame_rate(44100)
+            # 주파수 변경 (목소리 굵기 변경)
+            frequency_factor = frequency
+            print(f"{letter} - frequency_factor: {frequency_factor}")
+            frequency_scaled_sound = librosa.effects.time_stretch(
+                pitch_shifted_sound, rate=frequency_factor
+            )
 
-        result_sound = new_sound if result_sound is None else result_sound + new_sound
+            # 재생 속도 변경
+            speed_factor = speed
+            print(f"{letter} - speed_factor: {speed_factor}")
+            time_stretched_sound = librosa.effects.time_stretch(
+                frequency_scaled_sound, rate=speed_factor
+            )
+
+            temp_filename = f"samples/temp_{letter}.wav"
+            sf.write(temp_filename, time_stretched_sound, sr)
+            new_sound = AudioSegment.from_wav(temp_filename)
+
+            # 저역 필터 적용
+            new_sound = new_sound.low_pass_filter(low_pass_filter_value)
+
+        # result_sound 초기화
+        if result_sound is None:
+            result_sound = new_sound
+        else:
+            result_sound += new_sound
 
     # 메모리 버퍼에 오디오 데이터 저장
     buffer = io.BytesIO()
