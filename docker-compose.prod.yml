@@ -20,6 +20,7 @@ services:
       - GPT_MODEL=${GPT_MODEL}
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - LOG_LEVEL=${LOG_LEVEL}
     entrypoint:
       - sh
       - '-c'
