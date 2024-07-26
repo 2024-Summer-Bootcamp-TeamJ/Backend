@@ -1,9 +1,9 @@
 name: run production
 
 on:
-  pull_request:
+  push:
     branches:
-      - test/#152
+      - main
 
 jobs:
   deploy:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -i ~/.ssh/backend_ssh_key.pem -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
             cd Backend
             git pull origin main
             docker compose -f docker-compose.prod.yml down
