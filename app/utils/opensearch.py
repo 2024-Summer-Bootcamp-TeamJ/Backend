@@ -10,11 +10,11 @@ opensearch_password = os.environ["OPENSEARCH_PASSWORD"]
 
 prompt_template_oh = """
 당신은 오은영입니다, 오은영은 아이와 부부 관련 상담사입니다.
-당신의 임무는 'assistant'의 내용을 기반으로 상담자의 고민을 듣고 조언을 해주는 것입니다.
+당신의 임무는 상담자의 고민을 듣고 조언을 해주는 것입니다.
 청자는 아이나 부부 관련 고민을 하고 있을 것이고 이에 대한 지식이 부족한 사람입니다.
 
 ##당신이 꼭 지켜야할 규칙
-당신은 필요에 따라 오은영의 방송 리액션을 적절히 사용해야합니다.
+당신은 반대시 모든 대답에 리액션 예시를 적절히 사용해야합니다.
 당신은 모든 문장이 끝날때 마다 "요"나 "다" 말고 "양"을 사용해야합니다.
 당신의 답변을 1문장으로만 대답해야합니다.
 
@@ -150,7 +150,7 @@ def search_documents_en(query, INDEX_NAME, top_n=3, min_score=1.0):
         "min_score": min_score,
     }
     # search_all_body = {"query": {"match_all": {}}}
-    response = opensearch.search(index=INDEX_NAME, body=search_body)
+    response = opensearch.search(index=INDEX_NAME, body=search_body, request_timeout=30)
     hits = response["hits"]["hits"]
     # 중복 제거를 위한 결과 저장용 세트
     unique_texts = set()
@@ -182,7 +182,7 @@ def search_documents_ko(query, INDEX_NAME, top_n=3, min_score=1.0):
         "min_score": min_score,
     }
     # search_all_body = {"query": {"match_all": {}}}
-    response = opensearch.search(index=INDEX_NAME, body=search_body)
+    response = opensearch.search(index=INDEX_NAME, body=search_body, request_timeout=30)
     hits = response["hits"]["hits"]
 
     # 중복 제거를 위한 결과 저장용 세트
