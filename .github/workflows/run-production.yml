@@ -1,0 +1,34 @@
+name: run production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install SSH Client
+        run: sudo apt-get install -y openssh-client
+
+      - name: Add SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/backend_ssh_key.pem
+          chmod 600 ~/.ssh/backend_ssh_key.pem
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/deploy_key.pem -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd Backend
+            git pull origin main
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            docker volume prune -f
+          EOF
