@@ -129,7 +129,17 @@ async def websocket_endpoint(
             )
 
             # GPT에게 답변 요청
-            gpt_answer = get_gpt_answer(gpt_payload)
+            try:
+                gpt_answer = get_gpt_answer(gpt_payload)
+            except Exception as e:
+                logger.error("Gpt Answer Error: error=%s", e)
+                await websocket.send_json(
+                    {
+                        "event": "server_message",
+                        "message": "죄송합니다. 서버에 오류가 발생했습니다. 관리자에게 문의해주세요.",
+                    }
+                )
+                continue
 
             logger.debug("Gpt Answer Received: answer=%s", gpt_answer)
 
@@ -198,7 +208,10 @@ Conversation : """ + json.dumps(
             content=prescription_content,
         )
         logger.info(
-            "Prescription Generated: user_id=%d, chatroom_id=%d, prescription_id=%d", user_id, chatroom_id, prescription.id
+            "Prescription Generated: user_id=%d, chatroom_id=%d, prescription_id=%d",
+            user_id,
+            chatroom_id,
+            prescription.id,
         )
 
         # 채팅방 삭제
