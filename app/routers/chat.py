@@ -40,19 +40,20 @@ def generate_gpt_payload(client_message, chat_memory_messages, prompt, context):
     combined_content = " ".join([message["content"] for message in gpt_payload])
     token_count = count_tokens(combined_content)
 
-    print(token_count)
-
     # prompt 추가
-    logger.debug("Gpt Payload being Generated: prompt=%s", gpt_payload)
-    logger.info("Gpt Payload Generated=%s", gpt_payload)
+    logger.debug(
+        "Gpt Payload being Generated: prompt=%s, token count=%s",
+        gpt_payload,
+        token_count,
+    )
+
     return gpt_payload
 
 
 # 문자열을 한글, 영어, 숫자, 공백, 마침표, 쉼표, 물음표만 남기고 제거
 def trim_text(text):
-    logger.debug("Text being Trimmed: text=%s", text)
     trimmed_text = re.sub(r"[^\uAC00-\uD7A3a-zA-Z0-9 .,?]", "", text)
-    logger.info("Text Trimmed: text=%s", trimmed_text)
+    logger.debug("Text Trimmed: text=%s", trimmed_text)
     return trimmed_text
 
 
@@ -60,7 +61,7 @@ def trim_text(text):
 async def websocket_endpoint(
     websocket: WebSocket, chatroom_id: int, user_id: int, db: Session = Depends(get_db)
 ):
-    logger.debug(
+    logger.info(
         "WebSocket Connection Requested: chatroom_id=%d, user_id=%d",
         chatroom_id,
         user_id,
@@ -103,33 +104,39 @@ async def websocket_endpoint(
     try:
         while True:
             client_message = await websocket.receive_text()
-            logger.debug(
-                "User Message Received: user_id=%d, message=%s", user_id, client_message
+            logger.info(
+                "User Message Received: user_id=%d\nmessage=%s", user_id, client_message
             )
             # 사용자의 메시지를 db에 저장
             ChatService.create_chat(
                 db, chatroom_id=chatroom_id, is_user=True, content=client_message
             )
-            logger.info(
-                "User Message Saved as Chatroom_id: chatroom_id=%d", chatroom_id
-            )
+            logger.info("User Message Saved: chatroom_id=%d", chatroom_id)
 
             # RAG 모델을 사용하여 prompt 생성
             prompt, context = opensearchService.combined_contexts(
                 client_message, chatroom.mentor_id
             )
-            logger.debug("Prompt Generated for Rag Model: %s", prompt)
+            logger.debug("Prompt Generated for Rag Model")
 
             # 대화 기록과 prompt를 합쳐서 전달할 payload 생성
             gpt_payload = generate_gpt_payload(
                 client_message, memory.chat_memory.messages, prompt, context
             )
-            logger.info(
-                "Gpt Payload Generated with chatroom_id: chatroom_id=%d", chatroom_id
-            )
+            logger.info("Gpt Payload Generated: chatroom_id=%d", chatroom_id)
 
             # GPT에게 답변 요청
-            gpt_answer = get_gpt_answer(gpt_payload)
+            try:
+                gpt_answer = get_gpt_answer(gpt_payload)
+            except Exception as e:
+                logger.error("Gpt Answer Error: error=%s", e)
+                await websocket.send_json(
+                    {
+                        "event": "server_message",
+                        "message": "죄송합니다. 서버에 오류가 발생했습니다. 관리자에게 문의해주세요.",
+                    }
+                )
+                continue
 
             logger.debug("Gpt Answer Received: answer=%s", gpt_answer)
 
@@ -140,8 +147,8 @@ async def websocket_endpoint(
                     "content": "이전 채팅 내역 : " + client_message + gpt_answer,
                 }
             )
-            logger.info(
-                "Saved client_message and gpt_answer: client_message=%s, gpt_answer=%s",
+            logger.debug(
+                "Chat Memory Updated with User Message and Gpt Answer: user_message=%s, gpt_answer=%s",
                 client_message,
                 gpt_answer,
             )
@@ -161,19 +168,20 @@ async def websocket_endpoint(
                 }
             )
             logger.info(
-                "Audio sent to user in chatroom: user_id=%d, chatroom_id=%d",
+                "Answer and audio sent to user: user_id=%d, chatroom_id=%d\ngpt_answer=%s",
                 user_id,
                 chatroom_id,
+                gpt_answer,
             )
 
             # GPT의 답변을 db에 저장
             ChatService.create_chat(
                 db, chatroom_id=chatroom_id, is_user=False, content=gpt_answer
             )
-            logger.info("Gpt Answer Saved as Chatroom_id: chatroom_id=%d", chatroom_id)
+            logger.info("Gpt Answer Saved: chatroom_id=%d", chatroom_id)
 
     # 연결이 끊어졌을 때
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as e:
         logger.info(
             "WebSocket Disconected: user_id=%d, chatroom_id=%d", user_id, chatroom_id
         )
@@ -198,11 +206,15 @@ Conversation : """ + json.dumps(
             content=prescription_content,
         )
         logger.info(
-            "Prescription Generated: user_id=%d, chatroom_id=%d, prescription_id=%d", user_id, chatroom_id, prescription.id
+            "Prescription Saved: user_id=%d, mentor_id=%d, prescription_id=%d",
+            user_id,
+            chatroom_id,
+            prescription.id,
         )
 
         # 채팅방 삭제
         ChatroomService.delete_chatroom(db, chatroom_id=chatroom_id)
         logger.info("Chatroom deleted: chatroom_id=%d", chatroom_id)
 
-        print("client disconnected")
+        # 연결 종료
+        logger.info("Client disconnected: user_id=%d, status_code=%s", user_id, e.code)
