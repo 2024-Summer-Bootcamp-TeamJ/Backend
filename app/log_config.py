@@ -23,7 +23,8 @@ def setup_logging(config_file="log.ini"):
                 "%(levelname)-5s - %(asctime)s - %(funcName)s - %(message)s"
             )
         )
-
+    
+    logger.setLevel(logging._nameToLevel[os.getenv("LOG_LEVEL")])
 
 # setup_logging을 호출하여 로깅 설정 적용
 if os.environ.get("TESTING") != "True":
