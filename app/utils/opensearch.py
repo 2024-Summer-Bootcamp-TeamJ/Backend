@@ -213,6 +213,5 @@ def combined_contexts(question, mentor_id):
     combined_results = english_search_results + korean_search_results
 
     context = " ".join(combined_results)
-    print(context)
 
     return prompt, context
