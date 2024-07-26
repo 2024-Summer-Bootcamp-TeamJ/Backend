@@ -1,4 +1,4 @@
-name: run production
+name: Run production
 
 on:
   pull_request:
