@@ -114,9 +114,20 @@ async def websocket_endpoint(
             logger.info("User Message Saved: chatroom_id=%d", chatroom_id)
 
             # RAG 모델을 사용하여 prompt 생성
-            prompt, context = opensearchService.combined_contexts(
-                client_message, chatroom.mentor_id
-            )
+            try:
+                prompt, context = opensearchService.combined_contexts(
+                    client_message, chatroom.mentor_id
+                )
+            except Exception as e:
+                logger.error("OpenSearch Error: error=%s", e)
+                await websocket.send_json(
+                    {
+                        "event": "server_message",
+                        "message": "죄송합니다. 서버에 오류가 발생했습니다. 다시 시도해주세요.",
+                    }
+                )
+                continue
+
             logger.debug("Prompt Generated for Rag Model")
 
             # 대화 기록과 prompt를 합쳐서 전달할 payload 생성
