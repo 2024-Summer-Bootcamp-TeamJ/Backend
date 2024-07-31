@@ -15,3 +15,7 @@ tiktoken
 gtts
 pytest
 prometheus-fastapi-instrumentator
+sentence-transformers
+langchain_community
+torch
+transformers

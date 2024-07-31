@@ -33,10 +33,8 @@ def generate_gpt_payload(client_message, chat_memory_messages, prompt, context):
     gpt_payload = [
         {"role": "system", "content": prompt},
         {"role": "user", "content": client_message},
-        {"role": "assistant", "content": context},
-    ] + [
-        {"role": "assistant", "content": msg["content"]} for msg in chat_memory_messages
     ]
+
     combined_content = " ".join([message["content"] for message in gpt_payload])
     token_count = count_tokens(combined_content)
 
@@ -144,7 +142,7 @@ async def websocket_endpoint(
             memory.chat_memory.messages.append(
                 {
                     "role": "assistant",
-                    "content": "이전 채팅 내역 : " + client_message + gpt_answer,
+                    "content": client_message + gpt_answer,
                 }
             )
             logger.debug(
