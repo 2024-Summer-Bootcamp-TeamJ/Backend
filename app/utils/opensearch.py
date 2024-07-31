@@ -1,5 +1,10 @@
 from deep_translator import GoogleTranslator
 from opensearchpy import OpenSearch
+from sentence_transformers import SentenceTransformer
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.vectorstores import OpenSearchVectorSearch
+import torch
+from transformers import AutoTokenizer, AutoModel
 import os
 
 translator = GoogleTranslator(source="ko", target="en")
@@ -9,36 +14,38 @@ opensearch_admin = os.environ["OPENSEARCH_ADMIN"]
 opensearch_password = os.environ["OPENSEARCH_PASSWORD"]
 
 prompt_template_oh = """
-당신은 오은영입니다, 오은영은 아이와 부부 관련 상담사입니다.
-당신의 임무는 상담자의 고민을 듣고 조언을 해주는 것입니다.
-청자는 아이나 부부 관련 고민을 하고 있을 것이고 이에 대한 지식이 부족한 사람입니다.
+## 당신이 반드시 해야하는 대화 내용
+손님: 13살 된 아들 경훈이가 도둑질과 거짓말을 해서 걱정이에요. 어떻게 해결할 수 있을까요?
+오은영: 도둑질과 거짓말은 많은 아이들이 경험하는 문제양. 경훈이가 왜 이런 행동을 생각해봤양?
 
-##당신이 꼭 지켜야할 규칙
-당신은 반대시 모든 대답에 리액션 예시를 적절히 사용해야합니다.
-당신은 모든 문장이 끝날때 마다 "요"나 "다" 말고 "양"을 사용해야합니다.
-당신의 답변을 1문장으로만 대답해야합니다.
+"손님: 혼날까 봐? 아니면 그냥 갖고 싶어서?"
+"오은영: 맞아양. 상황을 모면하려고, 또는 원하는 것을 얻기 위해서 거짓말을 할 수 있어양. 또 다른 이유가 있을까양?
 
-##대화 예시
-"아이가 너무 먹방을 좋아해요. 어떻게 해야할까요?"
-"어머 ~ 그랬군양. 속상했겠양. 왜 먹방을 좋아하는지 생각했양?"
+손님: 상황을 해결할 방법을 모르기 때문일까요?
+오은영: 그렇죠양. 예를 들어, 돈이 필요할 때 그냥 달라고 하면 되양. 애착 이론에 따르면, 경훈이 이런 행동을 하는 것은 부모와의 애착 관계에서 문제가 있을 수 있어양. 부모님과의 관계에서 어려움을 겪고 있나양?
 
-##리액션 예시
-# 공감하는 리액션:
-"아~~ 그렇군양."
-"많이 힘드셨겠어양."
-"아이의 입장에서 생각해보면 그럴 수 있어양."
-조언하는 리액션:
-"이런 상황에서는 이렇게 해보시면 어떨까양?"
-"아이에게 이렇게 말해보세양."
-"부모님께서 이런 방법을 시도해보는 것도 좋을 것 같아양."
-위로하는 리액션:
-"많이 힘드셨죠. 충분히 이해해양."
-"괜찮아요. 모든 부모님들이 겪는 일이에양."
-"잘하고 계세요. 조금만 더 힘내세양."
-격려하는 리액션:
-"정말 잘하고 계세양."
-"이렇게 노력하시는 모습이 참 좋아양."
-"앞으로도 지금처럼 해주시면 돼양."
+손님: 요즘 저희와 대화하려고 하지 않고, 방에만 있으려고 해요.
+오은영: 아이가 부모의 관심과 사랑을 갈망할 때, 부정적인 행동으로 주의를 끌 수 있어양. 자아 존중감 이론에 따르면, 낮은 자존감이 이러한 행동으로 이어질 수 있어양.
+
+손님: 그럼 이런 문제들을 어떻게 다뤄야 할까요?
+오은영: 먼저, 아이의 잘못을 발견했을 때 보통 어떻게 반응하시나양?
+
+손님: 솔직히 말하면 안 혼낼게. 솔직히 말해봐~라고 하죠.
+오은영: 그런데 아이들은 이런 상황에서 부모님의 말이 거짓말처럼 느껴질 수 있어양. 3초 피노키오 법칙을 사용해 보세양. 무슨 일이 생겼을 때 바로 반응하지 말고, 3초 동안 생각한 후에 말하는 거에양.
+
+손님: 아이들에게 3초 동안 생각할 시간을 주는 것이 중요하네요.
+오은영: 맞아양. 이렇게 3초 동안 생각하고 나서 솔직히 말해보는 연습을 통해, 아이가 자신의 행동을 조절하고 더 긍정적인 사고 패턴을 형성하도록 도와줄 수 있어양.
+
+손님: 경훈이가 솔직하게 말할 때마다 칭찬하고 격려해주는 것이 중요하겠네요.
+오은영: 그렇죠양. 긍정적인 강화를 통해 경훈이가 솔직하게 말하고, 문제를 같이 해결하는 경험을 쌓으면 더 좋은 결과가 나올 거예양.
+
+손님: 오늘 정말 많은 걸 배웠어요. 감사합니다!
+오은영: 네 오늘 상담한 내용들은 정리해서 편지로 보내드릴게양! 수고하셨어양~
+
+너는 오은영이야
+손님의 질문이 들어왔을떼 너는 대화내용에 쓰여진 오은영의 대답을 하면 돼
+너가 대답의 내용을 추가하지말고 내가 써놓은 그대로 대답하면 돼
+손님의 질문에 맞게 대답해야돼 다른 대답을 하지말고 똑같은 대답이나 추가하지말고 그대로 써놓은대로 대답하면 돼
 """
 
 
@@ -107,6 +114,33 @@ prompt_template_sin = """
 """
 
 
+## Embedding 모델 정의
+class MyEmbeddingModel:
+    def __init__(self, model_name):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
+
+    def embed_documents(self, doc):
+        inputs = self.tokenizer(
+            doc, return_tensors="pt", padding=True, truncation=True, max_length=512
+        )
+
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            embeddings = outputs.last_hidden_state.mean(dim=1).tolist()
+
+        return embeddings
+
+    def embed_query(self, text):
+        inputs = self.tokenizer(
+            [text], padding=True, truncation=True, return_tensors="pt", max_length=512
+        )
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            embeddings = outputs.last_hidden_state.mean(dim=1).tolist()
+        return embeddings
+
+
 opensearch = OpenSearch(
     hosts=[
         {
@@ -120,6 +154,17 @@ opensearch = OpenSearch(
     ssl_assert_hostname=False,
     ssl_show_warn=False,
 )
+
+# Sentence-BERT 모델 로드
+model = SentenceTransformer(
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+)
+
+
+def get_query_vector(query):
+    # 텍스트 쿼리를 벡터로 변환
+    query_vector = model.encode([query])[0]
+    return query_vector.tolist()
 
 
 def translate_text(text):
@@ -149,10 +194,10 @@ def search_documents_en(query, INDEX_NAME, top_n=3, min_score=1.0):
         "size": top_n,
         "min_score": min_score,
     }
-    # search_all_body = {"query": {"match_all": {}}}
+
     response = opensearch.search(index=INDEX_NAME, body=search_body, request_timeout=30)
     hits = response["hits"]["hits"]
-    # 중복 제거를 위한 결과 저장용 세트
+
     unique_texts = set()
     result_texts = []
 
@@ -167,7 +212,7 @@ def search_documents_en(query, INDEX_NAME, top_n=3, min_score=1.0):
 
 def search_documents_ko(query, INDEX_NAME, top_n=3, min_score=1.0):
     if INDEX_NAME == "baekjong-won":
-        top_n = 5
+        top_n = 6
 
     search_body = {
         "query": {
@@ -181,7 +226,6 @@ def search_documents_ko(query, INDEX_NAME, top_n=3, min_score=1.0):
         "size": top_n,
         "min_score": min_score,
     }
-    # search_all_body = {"query": {"match_all": {}}}
     response = opensearch.search(index=INDEX_NAME, body=search_body, request_timeout=30)
     hits = response["hits"]["hits"]
 
@@ -196,6 +240,45 @@ def search_documents_ko(query, INDEX_NAME, top_n=3, min_score=1.0):
             result_texts.append(text)
     result_texts += "\n"
     return result_texts
+
+
+def lexical_search(query, mentor_id):
+    try:
+        INDEX_NAME, prompt = search_index_names(mentor_id)
+        # 벡터 검색기 설정
+        my_embedding = MyEmbeddingModel("monologg/kobert")
+        vector_db = OpenSearchVectorSearch(
+            index_name=INDEX_NAME,
+            opensearch_url="https://search-teamj-oppxbwjfn6vkdnb2krsjegktqe.us-east-2.es.amazonaws.com",
+            http_auth=("admin", "Teamj12@"),
+            embedding_function=my_embedding.embed_query,
+            use_ssl=True,
+            verify_certs=True,
+            ssl_assert_hostname=False,
+            ssl_show_warn=False,
+        )
+        opensearch_lexical_retriever = search_documents_ko(query, INDEX_NAME)
+        # 키워드 검색기 검색 결과 수 설정
+
+        opensearch_semantic_retriever = vector_db.as_retriever(
+            search_type="similarity", search_kwargs={"k": 3}
+        )
+
+        ensemble_retriever = EnsembleRetriever(
+            retrievers=[opensearch_lexical_retriever, opensearch_semantic_retriever],
+            weights=[0.30, 0.70],
+        )
+        # 앙상블 검색 수행
+        query = "your search query"
+        search_hybrid_result = ensemble_retriever.get_relevant_documents(query)
+
+        # 검색 결과 출력
+        for result in search_hybrid_result:
+            print(result)
+    except Exception as e:
+        print(e)
+        search_hybrid_result = None
+    return search_hybrid_result
 
 
 def combined_contexts(question, mentor_id):
