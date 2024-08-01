@@ -9,9 +9,13 @@ celery
 openai 
 langchain
 pydub
-deep-translator
 opensearch-py
 tiktoken
 gtts
 pytest
 prometheus-fastapi-instrumentator
+sentence-transformers
+langchain_community
+torch
+transformers
+typing
