@@ -118,9 +118,11 @@ async def websocket_endpoint(
             logger.info("User Message Saved: chatroom_id=%d", chatroom_id)
 
             # RAG 모델을 사용하여 prompt 생성
+
             prompt_sys, prompt_user, context = opensearchService.lexical_search(
                 client_message, chatroom.mentor_id
             )
+
             logger.debug("Prompt Generated for Rag Model")
 
             # 대화 기록과 prompt를 합쳐서 전달할 payload 생성
