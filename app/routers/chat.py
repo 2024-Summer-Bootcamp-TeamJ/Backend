@@ -28,15 +28,19 @@ def count_tokens(text, model_name="cl100k_base"):
     return len(tokens)
 
 
-def generate_gpt_payload(client_message, chat_memory_messages, prompt, context):
-    # 기존 대화 기록 추가
-    gpt_payload = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": client_message},
-        {"role": "assistant", "content": context},
-    ] + [
-        {"role": "assistant", "content": msg["content"]} for msg in chat_memory_messages
-    ]
+def generate_gpt_payload(prompt_user, chat_memory_messages, prompt_sys, context):
+    gpt_payload = (
+        [
+            {"role": "system", "content": prompt_sys},  ##역할부여
+            {"role": "assistant", "content": context},
+        ]
+        + [
+            {"role": "assistant", "content": msg["content"]}
+            for msg in chat_memory_messages
+        ]
+        + [{"role": "user", "content": prompt_user}]  ##규칙
+    )
+
     combined_content = " ".join([message["content"] for message in gpt_payload])
     token_count = count_tokens(combined_content)
 
@@ -114,25 +118,16 @@ async def websocket_endpoint(
             logger.info("User Message Saved: chatroom_id=%d", chatroom_id)
 
             # RAG 모델을 사용하여 prompt 생성
-            try:
-                prompt, context = opensearchService.combined_contexts(
-                    client_message, chatroom.mentor_id
-                )
-            except Exception as e:
-                logger.error("OpenSearch Error: error=%s", e)
-                await websocket.send_json(
-                    {
-                        "event": "server_message",
-                        "message": "죄송합니다. 서버에 오류가 발생했습니다. 다시 시도해주세요.",
-                    }
-                )
-                continue
+
+            prompt_sys, prompt_user, context = opensearchService.lexical_search(
+                client_message, chatroom.mentor_id
+            )
 
             logger.debug("Prompt Generated for Rag Model")
 
             # 대화 기록과 prompt를 합쳐서 전달할 payload 생성
             gpt_payload = generate_gpt_payload(
-                client_message, memory.chat_memory.messages, prompt, context
+                prompt_user, memory.chat_memory.messages, prompt_sys, context
             )
             logger.info("Gpt Payload Generated: chatroom_id=%d", chatroom_id)
 
@@ -155,7 +150,7 @@ async def websocket_endpoint(
             memory.chat_memory.messages.append(
                 {
                     "role": "assistant",
-                    "content": "이전 채팅 내역 : " + client_message + gpt_answer,
+                    "content": client_message + gpt_answer,
                 }
             )
             logger.debug(
