@@ -267,50 +267,44 @@ def search_index_names(mentor_id):
 
 
 def lexical_search(query, mentor_id):
-    try:
-        INDEX_NAME, prompt_sys, prompt_user = search_index_names(mentor_id)
-        my_embedding = MyEmbeddingModel("monologg/kobert")
 
-        # 래핑된 embedding function
+    INDEX_NAME, prompt_sys, prompt_user = search_index_names(mentor_id)
+    my_embedding = MyEmbeddingModel("monologg/kobert")
 
-        vector_db = OpenSearchVectorSearch(
-            index_name=INDEX_NAME,
-            opensearch_url="https://search-teamj-oppxbwjfn6vkdnb2krsjegktqe.us-east-2.es.amazonaws.com",
-            http_auth=("admin", "Teamj12@"),
-            embedding_function=my_embedding,  # 래핑된 함수 전달
-            use_ssl=True,
-            verify_certs=True,
-            ssl_assert_hostname=False,
-            ssl_show_warn=False,
-            is_aoss=False,
-            engine="faiss",
-            space_type="l2",
-        )
+    # 래핑된 embedding function
 
-        # `search_documents_ko`를 `RunnableRetriever`로 감쌈
-        opensearch_lexical_retriever = OpenSearchLexicalSearchRetriever(
-            os_client=client, index_name=INDEX_NAME
-        )
+    vector_db = OpenSearchVectorSearch(
+        index_name=INDEX_NAME,
+        opensearch_url="https://search-teamj-oppxbwjfn6vkdnb2krsjegktqe.us-east-2.es.amazonaws.com",
+        http_auth=("admin", "Teamj12@"),
+        embedding_function=my_embedding,  # 래핑된 함수 전달
+        use_ssl=True,
+        verify_certs=True,
+        ssl_assert_hostname=False,
+        ssl_show_warn=False,
+        is_aoss=False,
+        engine="faiss",
+        space_type="l2",
+    )
 
-        # Lexical Retriever(키워드 검색, 3개의 결과값 반환)
-        opensearch_lexical_retriever.update_search_params(k=3, minimum_should_match=0)
+    # `search_documents_ko`를 `RunnableRetriever`로 감쌈
+    opensearch_lexical_retriever = OpenSearchLexicalSearchRetriever(
+        os_client=client, index_name=INDEX_NAME
+    )
 
-        ensemble_retriever = EnsembleRetriever(
-            retrievers=[
-                opensearch_lexical_retriever,
-                vector_db.as_retriever(
-                    search_type="similarity", search_kwargs={"k": 3}
-                ),
-            ],
-            weights=[0.30, 0.70],
-        )
+    # Lexical Retriever(키워드 검색, 3개의 결과값 반환)
+    opensearch_lexical_retriever.update_search_params(k=3, minimum_should_match=0)
 
-        search_hybrid_result = ensemble_retriever.get_relevant_documents(query)
-        context = "\n".join([doc.page_content for doc in search_hybrid_result])
-        prompt_user_format = prompt_user.format(client_message=query)
-        print("prompt_user_format : ", prompt_user_format)
-    except Exception as e:
-        print(e)
-        search_hybrid_result = None
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[
+            opensearch_lexical_retriever,
+            vector_db.as_retriever(search_type="similarity", search_kwargs={"k": 3}),
+        ],
+        weights=[0.30, 0.70],
+    )
+
+    search_hybrid_result = ensemble_retriever.get_relevant_documents(query)
+    context = "\n".join([doc.page_content for doc in search_hybrid_result])
+    prompt_user_format = prompt_user.format(client_message=query)
 
     return prompt_sys, prompt_user_format, context
