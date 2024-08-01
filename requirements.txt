@@ -15,7 +15,7 @@ gtts
 pytest
 prometheus-fastapi-instrumentator
 sentence-transformers
-langchain_community
+langchain-community
 torch
 transformers
 typing
