@@ -9,7 +9,6 @@ celery
 openai 
 langchain
 pydub
-deep-translator
 opensearch-py
 tiktoken
 gtts
@@ -19,3 +18,4 @@ sentence-transformers
 langchain_community
 torch
 transformers
+typing

@@ -28,12 +28,18 @@ def count_tokens(text, model_name="cl100k_base"):
     return len(tokens)
 
 
-def generate_gpt_payload(client_message, chat_memory_messages, prompt, context):
-    # 기존 대화 기록 추가
-    gpt_payload = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": client_message},
-    ]
+def generate_gpt_payload(prompt_user, chat_memory_messages, prompt_sys, context):
+    gpt_payload = (
+        [
+            {"role": "system", "content": prompt_sys},  ##역할부여
+            {"role": "assistant", "content": context},
+        ]
+        + [
+            {"role": "assistant", "content": msg["content"]}
+            for msg in chat_memory_messages
+        ]
+        + [{"role": "user", "content": prompt_user}]  ##규칙
+    )
 
     combined_content = " ".join([message["content"] for message in gpt_payload])
     token_count = count_tokens(combined_content)
@@ -112,14 +118,14 @@ async def websocket_endpoint(
             logger.info("User Message Saved: chatroom_id=%d", chatroom_id)
 
             # RAG 모델을 사용하여 prompt 생성
-            prompt, context = opensearchService.combined_contexts(
+            prompt_sys, prompt_user, context = opensearchService.lexical_search(
                 client_message, chatroom.mentor_id
             )
             logger.debug("Prompt Generated for Rag Model")
 
             # 대화 기록과 prompt를 합쳐서 전달할 payload 생성
             gpt_payload = generate_gpt_payload(
-                client_message, memory.chat_memory.messages, prompt, context
+                prompt_user, memory.chat_memory.messages, prompt_sys, context
             )
             logger.info("Gpt Payload Generated: chatroom_id=%d", chatroom_id)
 
