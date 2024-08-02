@@ -34,10 +34,7 @@ def generate_gpt_payload(prompt_user, chat_memory_messages, prompt_sys, context)
             {"role": "system", "content": prompt_sys},  ##역할부여
             {"role": "assistant", "content": context},
         ]
-        + [
-            {"role": "assistant", "content": msg["content"]}
-            for msg in chat_memory_messages
-        ]
+        + [{"role": "user", "content": msg["content"]} for msg in chat_memory_messages]
         + [{"role": "user", "content": prompt_user}]  ##규칙
     )
 
@@ -150,7 +147,7 @@ async def websocket_endpoint(
             memory.chat_memory.messages.append(
                 {
                     "role": "assistant",
-                    "content": client_message + gpt_answer,
+                    "content": "이전 채팅 내역 : " + client_message + gpt_answer,
                 }
             )
             logger.debug(
