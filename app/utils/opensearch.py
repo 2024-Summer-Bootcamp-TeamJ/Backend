@@ -9,24 +9,25 @@ from typing import List, Any
 from langchain.schema import BaseRetriever
 import numpy as np
 
+opensearch_url = os.environ["OPENSEARCH_URL"]
+opensearch_admin = os.environ["OPENSEARCH_ADMIN"]
+opensearch_password = os.environ["OPENSEARCH_PASSWORD"]
 
 client = OpenSearch(
     hosts=[
         {
-            "host": "search-teamj-oppxbwjfn6vkdnb2krsjegktqe.us-east-2.es.amazonaws.com",
+            "host": opensearch_url,
             "port": 443,
         }
     ],
-    http_auth=("admin", "Teamj12@"),
+    http_auth=(opensearch_admin, opensearch_password),
     use_ssl=True,
     verify_certs=True,
     ssl_assert_hostname=False,
     ssl_show_warn=False,
     timeout=60,
 )
-opensearch_url = os.environ["OPENSEARCH_URL"]
-opensearch_admin = os.environ["OPENSEARCH_ADMIN"]
-opensearch_password = os.environ["OPENSEARCH_PASSWORD"]
+
 prompt_user_baek = """
 ## 당신이 꼭 지켜야 할 규칙
 
@@ -356,21 +357,6 @@ class MyEmbeddingModel:
         ]  # 단일 쿼리를 리스트로 감싸고, 첫 번째 요소를 반환
 
 
-opensearch = OpenSearch(
-    hosts=[
-        {
-            "host": opensearch_url,
-            "port": 443,
-        }
-    ],
-    http_auth=(opensearch_admin, opensearch_password),
-    use_ssl=True,
-    verify_certs=True,
-    ssl_assert_hostname=False,
-    ssl_show_warn=False,
-)
-
-
 def search_index_names(mentor_id):
     mentor = ["baekjong-won", "oh", "shindong-yup"]
     prompt_sys = [prompt_sys_baek, prompt_sys_oh, prompt_sys_sin]
@@ -387,8 +373,8 @@ def lexical_search(query, mentor_id):
 
     vector_db = OpenSearchVectorSearch(
         index_name=INDEX_NAME,
-        opensearch_url="https://search-teamj-oppxbwjfn6vkdnb2krsjegktqe.us-east-2.es.amazonaws.com",
-        http_auth=("admin", "Teamj12@"),
+        opensearch_url=opensearch_url,
+        http_auth=(opensearch_admin, opensearch_password),
         embedding_function=my_embedding,  # 래핑된 함수 전달
         use_ssl=True,
         verify_certs=True,

@@ -18,4 +18,4 @@ sentence-transformers
 langchain-community
 torch
 transformers
-typing
+websockets
